@@ -1,0 +1,8 @@
+# GeoShield — Data Ingestion Layer (offline pre-compute step)
+# Produces the GeoJSON feeds the browser dashboard consumes.
+numpy>=1.26
+scipy>=1.11
+rasterio>=1.3.9
+shapely>=2.0.2
+pyproj>=3.6
+Pillow>=10.1

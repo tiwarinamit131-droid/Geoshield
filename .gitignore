@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+ingestion/_work/
+
+# Node
+node_modules/
+web/dist/
+*.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# NOTE: web/public/data/* IS committed — Netlify serves those feeds directly
+# (the Python ingestion layer is an offline pre-compute step, not run on deploy).

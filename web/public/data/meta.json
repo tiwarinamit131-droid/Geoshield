@@ -1,0 +1,28 @@
+{
+  "aoi_name": "SW Bhopal green belt \u2014 Bhoj Wetland & Kerwa-Kaliasot RF",
+  "bbox": [
+    77.33,
+    23.18,
+    77.41,
+    23.26
+  ],
+  "raster_bounds": [
+    77.32863270388421,
+    23.17998120221356,
+    77.41136934200445,
+    23.260000000000005
+  ],
+  "before_date": "2023-11-12",
+  "after_date": "2025-08-27",
+  "generated_note": "Synthetic reflectance over real coordinates; protected geometry is WDPA-schema representative.",
+  "kpi": {
+    "changes_detected": 5,
+    "by_class": {
+      "HIGH": 2,
+      "LOW": 1,
+      "MODERATE": 1,
+      "OUTSIDE": 1
+    },
+    "high_risk_area_ha": 10.37
+  }
+}

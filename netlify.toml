@@ -1,0 +1,16 @@
+# Netlify build config — the dashboard is a static Vite build.
+# The Python ingestion layer is NOT run here; its output (web/public/data/*)
+# is committed to the repo and shipped as-is.
+
+[build]
+  base    = "web"
+  command = "npm ci || npm install ; npm run build"
+  publish = "web/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
