@@ -104,34 +104,6 @@ Engine Code Editor and export `change_polygons.geojson` into `web/public/data/`.
 
 ---
 
-## Deploy to Netlify (get a shareable link)
-
-The dashboard is a static site — it needs **no server**. Two ways:
-
-### A. Connect the GitHub repo (recommended — auto-redeploys on every push)
-
-1. Push this repo to GitHub.
-2. Go to <https://app.netlify.com> → **Add new site → Import an existing project** → pick the repo.
-3. Netlify reads `netlify.toml` automatically:
-   * base `web`, build `npm install && npm run build`, publish `web/dist`.
-4. Click **Deploy**. In ~1 minute you get `https://<name>.netlify.app`.
-5. (Optional) **Site configuration → Change site name** to make the URL nicer, then share it.
-
-### B. Netlify CLI (no GitHub needed)
-
-```bash
-cd web
-npm install
-npm run build
-npx netlify-cli deploy --dir=dist --prod
-```
-The CLI opens a browser to log in / create a free account, then prints the live URL.
-
-Either way you end up with a plain `https://…netlify.app` link that opens on any
-phone — paste it straight into WhatsApp.
-
----
-
 ## Data & honesty note
 
 For a guaranteed-working demo the satellite scene uses **synthetic reflectance over
