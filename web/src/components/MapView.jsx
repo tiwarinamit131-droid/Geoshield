@@ -59,6 +59,29 @@ function MapSizer({ scored }) {
   return null;
 }
 
+// before/after swipe: clip the "after" pane to the right of the divider
+function SwipeClip({ pos }) {
+  const map = useMap();
+  useEffect(() => {
+    const pane = map.getPane("imgAfter");
+    if (!pane) return;
+    const update = () => {
+      const size = map.getSize();
+      const nw = map.containerPointToLayerPoint([0, 0]);
+      const se = map.containerPointToLayerPoint(size);
+      const x = nw.x + size.x * pos;
+      pane.style.clip = `rect(${nw.y}px, ${se.x}px, ${se.y}px, ${x}px)`;
+    };
+    update();
+    map.on("move zoom resize", update);
+    return () => {
+      map.off("move zoom resize", update);
+      pane.style.clip = "";
+    };
+  }, [map, pos]);
+  return null;
+}
+
 function FlyToSelected({ scored, selectedId }) {
   const map = useMap();
   useEffect(() => {
@@ -71,13 +94,26 @@ function FlyToSelected({ scored, selectedId }) {
         [s, w],
         [n, e],
       ],
-      { padding: [140, 140], maxZoom: 17, duration: 0.6 }
+      // on phones the docket sheet covers the lower half of the map
+      window.matchMedia("(max-width: 900px)").matches
+        ? { paddingTopLeft: [40, 120], paddingBottomRight: [40, map.getSize().y * 0.55], maxZoom: 16, duration: 0.6 }
+        : { padding: [140, 140], maxZoom: 17, duration: 0.6 }
     );
   }, [selectedId, scored, map]);
   return null;
 }
 
-export default function MapView({ scored, protectedFC, meta, epoch, selectedId, onSelect }) {
+export default function MapView({
+  scored,
+  protectedFC,
+  meta,
+  epoch,
+  swipePos,
+  selectedId,
+  visibleIds,
+  onSelect,
+}) {
+  const shown = (id) => !visibleIds || visibleIds.includes(id);
   const rb = meta.raster_bounds; // [W, S, E, N]
   const imgBounds = [
     [rb[1], rb[0]],
@@ -93,10 +129,12 @@ export default function MapView({ scored, protectedFC, meta, epoch, selectedId, 
 
   const violStyle = (feat) => {
     const sel = feat.properties.change_id === selectedId;
+    const dim = !shown(feat.properties.change_id);
     return {
       color: riskColor(feat.properties.risk_class),
       weight: sel ? 4 : 2,
-      fillOpacity: sel ? 0.65 : 0.45,
+      opacity: dim ? 0.25 : 1,
+      fillOpacity: dim ? 0.08 : sel ? 0.65 : 0.45,
     };
   };
 
@@ -109,14 +147,15 @@ export default function MapView({ scored, protectedFC, meta, epoch, selectedId, 
       />
 
       {/* analysed Sentinel-2 scene sits below the vector layers */}
-      {epoch !== "off" && (
-        <Pane name="imagery" style={{ zIndex: 250 }}>
-          <ImageOverlay
-            key={epoch}
-            url={`${BASE}data/rgb_${epoch}.png`}
-            bounds={imgBounds}
-            opacity={0.85}
-          />
+      {(epoch === "before" || epoch === "swipe") && (
+        <Pane name="imgBefore" style={{ zIndex: 250 }}>
+          <ImageOverlay url={`${BASE}data/rgb_before.png`} bounds={imgBounds} opacity={0.9} />
+        </Pane>
+      )}
+      {(epoch === "after" || epoch === "swipe") && (
+        <Pane name="imgAfter" style={{ zIndex: 251 }}>
+          <ImageOverlay url={`${BASE}data/rgb_after.png`} bounds={imgBounds} opacity={0.9} />
+          {epoch === "swipe" && <SwipeClip pos={swipePos} />}
         </Pane>
       )}
 
@@ -130,7 +169,9 @@ export default function MapView({ scored, protectedFC, meta, epoch, selectedId, 
       />
 
       <GeoJSON
-        key={`v-${selectedId}`}
+        key={`v-${selectedId}-${visibleIds?.join() ?? "all"}-${scored.features
+          .map((f) => f.properties.risk_class[0])
+          .join("")}`}
         data={scored}
         style={violStyle}
         onEachFeature={(feat, layer) => {
@@ -147,24 +188,41 @@ export default function MapView({ scored, protectedFC, meta, epoch, selectedId, 
       {scored.features.map((f) => {
         const p = f.properties;
         const sel = p.change_id === selectedId;
-        return (
+        const dim = !shown(p.change_id);
+        const center = [p.centroid[1], p.centroid[0]];
+        return [
+          p.risk_class === "HIGH" && !dim && (
+            <CircleMarker
+              key={`${p.change_id}-pulse`}
+              center={center}
+              radius={14}
+              interactive={false}
+              pathOptions={{
+                className: "pulse-ring",
+                color: riskColor("HIGH"),
+                weight: 2,
+                fill: false,
+              }}
+            />
+          ),
           <CircleMarker
-            key={p.change_id}
-            center={[p.centroid[1], p.centroid[0]]}
+            key={`${p.change_id}-${p.risk_class}`}
+            center={center}
             radius={sel ? 11 : 7}
             pathOptions={{
-              color: "#0b0f0d",
-              weight: sel ? 2 : 1,
+              color: sel ? "#ffffff" : "#0b0f0d",
+              weight: sel ? 3 : 1,
+              opacity: dim ? 0.3 : 1,
               fillColor: riskColor(p.risk_class),
-              fillOpacity: 1,
+              fillOpacity: dim ? 0.3 : 1,
             }}
             eventHandlers={{ click: () => onSelect(p.change_id) }}
           >
             <Tooltip direction="top">
               {p.risk_class} · {p.confidence.toFixed(2)} · {p.change_id}
             </Tooltip>
-          </CircleMarker>
-        );
+          </CircleMarker>,
+        ];
       })}
 
       <MapSizer scored={scored} />

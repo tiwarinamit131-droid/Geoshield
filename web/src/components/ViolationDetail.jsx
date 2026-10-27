@@ -1,4 +1,4 @@
-import { WEIGHTS } from "../engine/confidence.js";
+import { useState } from "react";
 import { fmtDate } from "../lib/format.js";
 
 const RISK_TEXT = {
@@ -18,13 +18,32 @@ function Factor({ label, value, weight, note }) {
         </span>
       </div>
       <div className="bar">
-        <i style={{ width: `${Math.round(value * 100)}%` }} />
+        <i style={{ width: `${Math.round(value * 100)}%` }} key={value} />
       </div>
     </div>
   );
 }
 
-export default function ViolationDetail({ feature, meta, epoch, setEpoch }) {
+function permitNote(p) {
+  if (!p.permit_valid_until) return "";
+  const lapsed = new Date(p.permit_valid_until) < new Date();
+  return lapsed
+    ? ` · lapsed ${fmtDate(p.permit_valid_until)}`
+    : ` · valid to ${fmtDate(p.permit_valid_until)}`;
+}
+
+export default function ViolationDetail({
+  feature,
+  meta,
+  epoch,
+  setEpoch,
+  thresholds,
+  onClose,
+  onStep,
+  position,
+  total,
+}) {
+  const [copied, setCopied] = useState(false);
   if (!feature) {
     return (
       <aside className="detail">
@@ -37,6 +56,18 @@ export default function ViolationDetail({ feature, meta, epoch, setEpoch }) {
   }
   const p = feature.properties;
   const f = p.factors;
+  const WEIGHTS = p.weights;
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${p.centroid[1]},${p.centroid[0]}`;
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      window.prompt("Copy this link", window.location.href);
+    }
+  };
 
   const downloadDocket = () => {
     const blob = new Blob([JSON.stringify({ ...p, geometry: feature.geometry }, null, 2)], {
@@ -45,19 +76,39 @@ export default function ViolationDetail({ feature, meta, epoch, setEpoch }) {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `${p.change_id}_docket.json`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
   return (
-    <aside className="detail">
+    <aside className="detail open" key={p.change_id}>
       <div className="dhead">
-        <div className="cid">
-          {p.change_id} · {p.risk_class}
+        <div className="dnav">
+          <div className="cid">
+            {p.change_id} · {p.risk_class}
+            {total > 0 && (
+              <span className="pos">
+                {" "}
+                · {position} of {total}
+              </span>
+            )}
+          </div>
+          <div className="navbtns">
+            <button onClick={() => onStep(-1)} aria-label="Previous change">‹</button>
+            <button onClick={() => onStep(1)} aria-label="Next change">›</button>
+            <button onClick={onClose} aria-label="Close docket">✕</button>
+          </div>
         </div>
         <div className="score" style={{ color: `var(--${p.risk_class.toLowerCase()})` }}>
           {p.confidence.toFixed(2)}
           <span style={{ fontSize: 13, color: "var(--muted)" }}> / 1.00 confidence</span>
+        </div>
+        <div className="gauge">
+          <i style={{ width: `${p.confidence * 100}%`, background: `var(--${p.risk_class.toLowerCase()})` }} />
+          <b style={{ left: `${thresholds.moderate * 100}%` }} title="MODERATE threshold" />
+          <b style={{ left: `${thresholds.high * 100}%` }} title="HIGH threshold" />
         </div>
       </div>
 
@@ -95,7 +146,9 @@ export default function ViolationDetail({ feature, meta, epoch, setEpoch }) {
           <span>{p.protected_wdpaid || "—"}</span>
           <span className="k">Permit</span>
           <span>
-            {p.permit_id ? `${p.permit_id} (${p.permit_status})` : "No permit on record"}
+            {p.permit_id
+              ? `${p.permit_id} (${p.permit_status}${permitNote(p)})`
+              : "No permit on record"}
           </span>
           <span className="k">Area changed</span>
           <span>
@@ -113,7 +166,9 @@ export default function ViolationDetail({ feature, meta, epoch, setEpoch }) {
           </span>
           <span className="k">Centroid</span>
           <span>
-            {p.centroid[1].toFixed(5)}, {p.centroid[0].toFixed(5)}
+            <a href={mapsUrl} target="_blank" rel="noreferrer">
+              {p.centroid[1].toFixed(5)}, {p.centroid[0].toFixed(5)} ↗
+            </a>
           </span>
         </div>
 
@@ -133,9 +188,18 @@ export default function ViolationDetail({ feature, meta, epoch, setEpoch }) {
           </button>
           <button onClick={downloadDocket}>Download JSON</button>
         </div>
+        <div className="dbtns" style={{ marginTop: 8 }}>
+          <button onClick={copyLink}>{copied ? "Link copied ✓" : "Copy share link"}</button>
+          <button
+            onClick={() => setEpoch("swipe")}
+            className={epoch === "swipe" ? "on" : ""}
+          >
+            Compare (swipe)
+          </button>
+        </div>
       </div>
 
-      <div id="docket" style={{ display: "none" }}>
+      <div id="docket">
         <h1>GeoShield — Encroachment Violation Docket</h1>
         <p>
           <b>{p.change_id}</b> · Risk class: {p.risk_class} · Confidence {p.confidence.toFixed(2)}
@@ -147,7 +211,7 @@ export default function ViolationDetail({ feature, meta, epoch, setEpoch }) {
         </p>
         <p>Overlap with protected boundary: {p.overlap_pct}%</p>
         <p>
-          Permit: {p.permit_id ? `${p.permit_id} — ${p.permit_status}` : "none on record"}
+          Permit: {p.permit_id ? `${p.permit_id} — ${p.permit_status}${permitNote(p)}` : "none on record"}
         </p>
         <p>
           Area changed: {p.area_ha.toFixed(3)} ha · NDVI {p.ndvi_before.toFixed(2)} →{" "}
@@ -165,6 +229,7 @@ export default function ViolationDetail({ feature, meta, epoch, setEpoch }) {
           {WEIGHTS.overlap}·overlap({f.overlap.toFixed(2)}) + {WEIGHTS.permit}·permit(
           {f.permit.toFixed(2)}). Evidence: multi-temporal Sentinel-2 NDVI/NDWI differencing.
         </p>
+        <p style={{ marginTop: 8, fontSize: 11 }}>Generated {new Date().toLocaleString("en-IN")}</p>
       </div>
     </aside>
   );
