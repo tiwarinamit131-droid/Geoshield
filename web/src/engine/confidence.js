@@ -20,6 +20,16 @@ export function fMagnitude(p) {
   return +(0.45 * areaScore + 0.35 * ndviScore + 0.2 * ndwiScore).toFixed(4);
 }
 
+// rescale user-tuned weights so they always sum to 1
+export function normalizeWeights(w) {
+  const sum = w.magnitude + w.overlap + w.permit || 1;
+  return {
+    magnitude: +(w.magnitude / sum).toFixed(3),
+    overlap: +(w.overlap / sum).toFixed(3),
+    permit: +(w.permit / sum).toFixed(3),
+  };
+}
+
 export const RISK_META = {
   HIGH: { label: "High — likely illegal", color: "#e5372c" },
   MODERATE: { label: "Moderate — verify on ground", color: "#f2a308" },
@@ -28,11 +38,11 @@ export const RISK_META = {
 };
 
 // change: scored Feature (already carries overlap/permit results from spatialJoin)
-export function classify({ score, fOverlap, permit, permitCover }) {
+export function classify({ score, fOverlap, permit, permitCover }, thresholds = THRESHOLDS) {
   if (fOverlap <= 0.001) return "OUTSIDE";
   if (permit && permit.status === "VALID" && permitCover >= PERMIT_COVER_MIN) return "LOW";
-  if (score >= THRESHOLDS.high) return "HIGH";
-  if (score >= THRESHOLDS.moderate) return "MODERATE";
+  if (score >= thresholds.high) return "HIGH";
+  if (score >= thresholds.moderate) return "MODERATE";
   return "LOW";
 }
 
